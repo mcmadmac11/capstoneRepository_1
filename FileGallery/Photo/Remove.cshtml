@@ -1,0 +1,46 @@
+﻿@{
+    var fileId = UrlData[0].AsInt();
+
+    var db = Database.Open("PhotoGallery");
+
+    var file = db.QuerySingle("SELECT * FROM Photos WHERE Id = @0", fileId);
+    if (file == null) 
+    {
+        Response.SetStatus(HttpStatusCode.NotFound);
+        return;        
+    }
+
+    WebSecurity.RequireUser(file.UserId);
+
+    Page.Title = "Remove Photo - " + file.PhotoTitle;
+
+    if (IsPost) 
+    {
+        //Remove all tags associated with this image
+        db.Execute("DELETE FROM Photos_Tags WHERE Photos_Id = @0", fileId);
+        //Remove all comments associated with this image
+        db.Execute("DELETE FROM Comments WHERE PhotoId = @0", fileId);
+        //Delete image
+        db.Execute("DELETE FROM Photos WHERE Id = @0", fileId);
+        Response.Redirect(Href("~/View",file.GalleryId));
+    }
+}
+
+<h1>Remove @file.PhotoTitle</h1>
+
+<section id="sidebar">
+    <p class="message error"> 
+        Removing this file will permanently delete the file from the file gallery site 
+        and you will lose all associated data (description, tags, and comments). You may 
+        want to download the <a href="~/Photo/Full/@fileId" title="Download: @(file.PhotoTitle + file.PhotoExtension)">full size file</a> before continuing. 
+    </p>
+
+    <form method="post" action="">
+        <p class="form-actions" data-role="controlgroup" data-type="horizontal">
+            <input type="submit" value="Remove" title="Remove file" />
+            <a data-role="button" href="~/Photo/View/@fileId" title="Do not remove file">Cancel</a>
+        </p>
+    </form>
+</section>
+
+<img alt="@Html.AttributeEncode(file.PhotoTitle)" src="~/Photo/Thumbnail/@file.Id?size=large" />

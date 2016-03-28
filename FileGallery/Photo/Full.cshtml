@@ -1,0 +1,16 @@
+﻿@{
+    // Cache the image for a minute
+    Response.OutputCache(60);
+
+    var fileId = UrlData[0].AsInt();
+    var db = Database.Open("PhotoGallery");
+    var file = db.QuerySingle("SELECT * FROM Photos WHERE Id = @0", fileId);
+    if (file == null)
+    {
+        Response.SetStatus(HttpStatusCode.NotFound);
+        return;
+    }
+
+    Response.AppendHeader("Content-Disposition", String.Format("attachment; filename={0}", HttpUtility.UrlPathEncode(file.PhotoTitle + file.PhotoExtension)));
+    new WebImage(file.PhotoContents).Write();
+}

@@ -1,0 +1,147 @@
+﻿@{
+    var fileId = UrlData[0].AsInt();
+
+    var db = Database.Open("PhotoGallery");
+
+    var file = db.QuerySingle("SELECT * FROM Photos WHERE Id = @0", fileId);
+    if (file == null)
+    {
+        Response.SetStatus(HttpStatusCode.NotFound);
+        return;        
+    }
+
+    Page.Title = "Photo - " + file.PhotoTitle;
+
+    string description = file.description;
+
+    if (IsPost)
+    {
+        var newComment = Request["newComment"].Trim();
+        if (newComment.IsEmpty()) 
+        {
+            Response.Redirect(Href("View", fileId));
+        }
+
+        db.Execute("INSERT INTO Comments (PhotoId, CommentDate, UserId, CommentText) VALUES (@0, @1, @2, @3)",
+            fileId, DateTime.Now, WebSecurity.CurrentUserId, newComment);
+
+        Response.Redirect(Href("View",fileId));
+        return;
+    }
+
+    // Found a match - so show its info
+    var user = db.QuerySingle("SELECT * FROM UserProfiles WHERE UserId = @0", file.UserId);
+    var gallery = db.QuerySingle("SELECT * FROM Galleries WHERE Id = @0", file.GalleryId);
+    var comments = db.Query(@"SELECT * FROM Comments INNER JOIN UserProfiles
+                              ON Comments.UserId = UserProfiles.UserId WHERE PhotoId = @0 ORDER BY Comments.CommentDate", file.Id);
+    var tagList = db.Query("SELECT Tags_TagName FROM Photos_Tags WHERE Photos_Id = @0 ORDER BY Tags_TagName", file.Id);
+}
+
+<h1>@file.PhotoTitle</h1>
+
+<section id="sidebar">
+    @if (user.UserId == WebSecurity.CurrentUserId)
+    {
+        <p>
+            As the author, you can <a href="~/Photo/Edit/@fileId" title="edit">edit</a>
+            or <a href="~/Photo/Remove/@fileId" title="remove">remove</a> this file.
+        </p>
+    }
+    <dl>
+        <dt class="description">Description</dt>
+        <dd class="description">
+            @if (!description.IsEmpty())
+            {
+                <text>@file.Description</text>
+            }
+            else 
+            {
+                <text>The uploader did not provide a description for this file.</text>
+            }
+        </dd>
+        <dt class="uploaded-by">Uploaded by</dt>
+        <dd class="uploaded-by"><a href="~/User/View/@user.UserId" title="@user.DisplayName">@user.DisplayName</a></dd>
+        <dt class="upload-date">Upload date</dt>
+        <dd class="upload-date">@file.UploadDate</dd>
+        <dt class="part-of-gallery">Gallery</dt>
+        <dd><a href="~/View/@gallery.Id" title="@gallery.Name">@gallery.Name</a></dd>
+        <dt class="tags">Tags</dt>
+        <dd class="tags">
+            <ul class="comma-separated">
+            @if (tagList.Count == 0)
+            {
+                <li>This file has no tags.</li>
+            }
+            else
+            {
+                foreach (var t in tagList)
+                {
+                    <li><a href="~/Tag/View/@t.Tags_TagName" title="@t.Tags_TagName">@t.Tags_TagName</a></li>
+                }
+            }
+            </ul>
+        </dd>
+    </dl>
+    @if (WebSecurity.IsAuthenticated)
+    {
+        <a href="~/Photo/EditTags/@PhotoId">edit tags</a>
+    }
+    <div class="hide-from-mobile">
+        <p>
+            <a class="download" href="~/Photo/Full" title="Download: @(file.PhotoTitle + file.PhotoExtension)">Download full file!</a> (@(file.PhotoSize / 1024) KB)
+        </p>
+    </div>
+</section>
+
+<div id="file">
+    <img class="large-file" alt="@Html.AttributeEncode(file.PhotoTitle)" src="@Href("~/Photo/Thumbnail", file.Id, new { size="large" })" />
+    @switch ((int)comments.Count)
+    {
+        case 0:
+            <h2>Nobody has commented on this file</h2>
+            break;
+        case 1:
+            <h2>This file has generated one comment.</h2>
+            break;
+        default:
+            <h2>This file has generated @comments.Count comments.</h2>
+            break;
+    }
+
+    <ol class="comments">
+        @foreach (var comment in comments)
+        {
+            <li>
+                <h3 class="comment-header">
+                    <a href="~/User/View/@comment.UserId" title="View @(comment.DisplayName)'s profile">@comment.DisplayName</a> commented at @comment.CommentDate:
+                </h3>
+                <p class="comment-body">@comment.CommentText</p>
+            </li>
+        }
+    </ol>
+
+    @if (WebSecurity.IsAuthenticated)
+    {
+        <form method="post" action="">
+            <fieldset id="addComment">
+                <legend>Post new comment</legend>
+                <ol>
+                    <li>
+                        <label for="newComment">Comment</label>
+                        <textarea id="newComment" name="newComment" title="Your comment" rows="6" cols="70"></textarea>
+                    </li>
+                </ol>
+                <p class="form-actions">
+                    <input type="submit" title="Add comment" value="Add comment" />
+                </p>
+            </fieldset>
+        </form>
+    }
+    else
+    {
+        <p>
+            Only registered user may leave comments. Please <a href="~/Account/Login" title="login">login</a> 
+            or <a href="~/Account/Register" title="create an account">create an account</a> to leave a comment.
+        </p>
+    }
+</div>

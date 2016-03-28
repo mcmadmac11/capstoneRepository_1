@@ -1,0 +1,62 @@
+﻿@{
+    var tagName = UrlData[0];
+    Page.Title = "View Tag - " + tagName;
+
+    var db = Database.Open("PhotoGallery");
+    var files = db.Query(@"SELECT Photos.Id, Photos.PhotoTitle 
+                            FROM Photos, Photos_Tags 
+                            WHERE Photos.Id = Photos_Tags.Photos_Id AND Photos_Tags.Tags_TagName = @0", tagName).ToList();
+    var similarTags = db.Query(@"SELECT Tags_TagName AS TagName, COUNT(*) AS Count 
+                                 FROM Photos_Tags WHERE Photos_Id IN (SELECT Photos_Id FROM Photos_Tags WHERE Tags_TagName = @0) AND Tags_TagName != @0
+                                 GROUP BY Tags_TagName 
+                                 ORDER BY Count DESC", tagName).ToList();
+}
+
+<h1>@tagName</h1>
+
+<section>
+    @if (files.Count == 0)
+    {
+        <header>
+            <p>There are no files with this tag.</p>
+        </header>
+    }
+    else
+    {
+        <header>
+            @if (files.Count == 1)
+            {
+                <p>There is one file with this tag.</p>
+            }
+            else
+            {
+                <p>There are @files.Count files with this tag.</p>
+            }
+        </header>
+
+        <ul class="thumbnails" data-role="listview">
+            @foreach (var file in files)
+            {
+                <li>
+                    <a href="~/Photo/View/@file.Id" title="@file.PhotoTitle">
+                        <img alt="thumbnail of @file.PhotoTitle" src="~/Photo/Thumbnail/@file.Id" class="thumbnail-border" />
+                        <span class="right-of-image">@file.PhotoTitle</span>
+                    </a>
+                </li>
+            }
+        </ul>
+
+        if (similarTags.Count > 0)
+        {
+            <section>
+                <h2 class="similar-tags">Similar tags:</h2>
+                <ul class="comma-separated clear">
+                    @foreach (var t in similarTags)
+                    {
+                        <li><a href="~/Tag/View/@t.TagName" title="@t.TagName">@t.TagName</a></li>
+                    }
+                </ul>
+            </section>
+        }
+    }
+</section>
